@@ -1,20 +1,31 @@
 /*
-
  FILES →
- a  b  c  d  e  f  g  h
+    a  b  c  d  e  f  g  h
 +-------------------------+
-8 | ♜  ♞  ♝  ♛  ♚  ♝  ♞  ♜ | ← Rank 8
-7 | ♙  ♙  ♙  ♙  ♙  ♙  ♙  ♙ | ← Rank 7
-6 | .   .  .  .  .  .  .  .     |
-5 | .   .  .  .  .  .  .  .     |
-4 | .   .  .  .  .  .  .  .     |
-3 | .   .  .  .  .  .  .  .     |
-2 | ♙  ♙  ♙  ♙  ♙  ♙  ♙  ♙ | ← Rank 2
-1 | ♖  ♘  ♗  ♕  ♔  ♗  ♘  ♖ | ← Rank 1
+8 | ♜ ♞ ♝ ♛  ♚  ♝  ♞  ♜ | ← Rank 8
+7 | ♙ ♙ ♙ ♙  ♙  ♙  ♙  ♙ | ← Rank 7
+6 | .  .  .  .  .   .  .   . |
+5 | .  .  .  .  .   .  .   . |
+4 | .  .  .  .  .   .  .   . |
+3 | .  .  .  .  .   .  .   . |
+2 | ♙ ♙ ♙ ♙  ♙  ♙  ♙  ♙ | ← Rank 2
+1 | ♖ ♘ ♗ ♕  ♔  ♗  ♘  ♖ | ← Rank 1
 +-------------------------+
 
+| Rank\File | a  | b  | c  | d  | e  | f  | g  | h  |
+| --------- | -- | -- | -- | -- | -- | -- | -- | -- |
+| 8         | 56 | 57 | 58 | 59 | 60 | 61 | 62 | 63 |
+| 7         | 48 | 49 | 50 | 51 | 52 | 53 | 54 | 55 |
+| 6         | 40 | …  | …  | …  | …  | …  | …  | 47 |
+| …         |    |    |    |    |    |    |    |    |
+| 1         | 0  | 1  | 2  | 3  | 4  | 5  | 6  | 7  |
+
+Bits     0,  1,  2,  3, ...
+Squares a1, b1, c1, d1,
+
+5 6 7 8 9 10 11  << left  >> right
+3 2 1 0 1 2 3
 */
-
 
 #include <stdint.h>
 
@@ -25,44 +36,99 @@ typedef uint64_t u64;
 typedef float    f32;
 typedef double   f64;
 
+#define WHITE 0
+#define BLACK 1
+
+#define NOT_FILE_A  0xfefefefefefefefe
+#define NOT_FILE_AB 0xfcfcfcfcfcfcfcfc
+#define NOT_FILE_H  0x7f7f7f7f7f7f7f7f
+#define NOT_FILE_GH 0x3f3f3f3f3f3f3f3f
+
 // ::--- Board Representation ---::
 
-u64 White_Pawns  = 0xffULL << 48;
-u64 Black_Pawns  = 0xffULL << 8;
-u64 White_Bishop = 0x24ULL << 56;
-u64 Black_Bishop = 0x24ULL;
-u64 White_Knight = 0x42ULL << 56;
-u64 Black_Knight = 0x42ULL;
-u64 White_Rook   = 0x81ULL << 56;
-u64 Black_Rook   = 0x81ULL;
-u64 White_Queen  = 0x10ULL << 56;
-u64 Black_Queen  = 0x10ULL;
-u64 White_King   = 0x8ULL << 56;
-u64 Black_King   = 0x8ULL;
+u64 Black_Pawn   = 0x00FF000000000000ULL;  // rank 7
+u64 Black_Rook   = 0x8100000000000000ULL;  // a8, h8
+u64 Black_Knight = 0x4200000000000000ULL;  // b8, g8
+u64 Black_Bishop = 0x2400000000000000ULL;  // c8, f8
+u64 Black_Queen  = 0x0800000000000000ULL;  // d8
+u64 Black_King   = 0x1000000000000000ULL;  // e8
+
+u64 White_Pawn   = 0x000000000000FF00ULL;  // rank 2
+u64 White_Rook   = 0x0000000000000081ULL;  // a1, h1
+u64 White_Knight = 0x0000000000000042ULL;  // b1, g1
+u64 White_Bishop = 0x0000000000000024ULL;  // c1, f1
+u64 White_Queen  = 0x0000000000000008ULL;  // d1
+u64 White_King   = 0x0000000000000010ULL;  // e1
 
 // ::--- Game Rules ---::
 
-int White_Turn;         /* White=1, Black=-1 */
-u8  Castling_Rights;
-int En_Passant_Square;
+u8 White_Turn;
+u8 Castling_Rights;
+u8 En_Passant_Square;
 
 // ::--- Attack Masks ---::
-//
+
 // Fixed-move pieces (That don't depend on blocks)
 u64 Pawn_Attacks[2][64];
 u64 Knight_Attacks[64];
 u64 King_Attacks[64];
 
 void Pawn_Attacks_Init() {
-    for(u8 color=0; color<2; color++) {
-        for(u8 rank=0; rank<8; rank++) {
-            for(u8 file=0; file<8; file++) {
-                u64 file_mask   = (0x0101010101010101 << (file));
-                u64 rank_mask   = (0xff << (rank * 8));
-                u64 square_mask = (1 << ((rank * 8) + file));
-                Pawn_Attacks[color][rank + file] = (file_mask | rank_mask) & ~square_mask;
-            }
+    for(u8 square = 0; square < 64; square++) {
+        u64 bit = 1ULL << square;
+
+        // --- White Attacks ---
+        u64 white = 0ULL;
+        if(bit & NOT_FILE_A) white |= bit << 7; // NW
+        if(bit & NOT_FILE_H) white |= bit << 9; // NE
+
+        // --- Black Attacks ---
+        u64 black = 0ULL;
+        if((bit >> 7) & NOT_FILE_H) black |= bit >> 7; // SE
+        if((bit >> 9) & NOT_FILE_A) black |= bit >> 9; // SW
+
+        Pawn_Attacks[WHITE][square] = white;
+        Pawn_Attacks[BLACK][square] = black;
+    }
+}
+
+void Knight_Attacks_Init() {
+    for(u8 square = 0; square < 64; square++) {
+        u8   bit = 1ULL << square;
+        u64 mask = 0ULL;
+        if(bit & NOT_FILE_AB) {
+            mask |= bit << 15; // 2Top  1Left
+            mask |= bit << 6;  // 2Left 1Top
+            mask |= bit >> 15; // 2Down 1Left
+            mask |= bit >> 6;  // 2Left 1Down
         }
+        if(bit & NOT_FILE_GH) {
+            mask |= bit << 17; // 2Top   1Right
+            mask |= bit << 10; // 2Right 1Top
+            mask |= bit >> 17; // 2Down  1Right
+            mask |= bit >> 10; // 2Right 1Down
+        }
+        Knight_Attacks[square] = mask;
+    }
+}
+
+void King_Attacks_Init() {
+    for(u8 square = 0; square < 64; square++) {
+        u8   bit = 1ULL << square;
+        u64 mask = 0ULL;
+        if(bit & NOT_FILE_A) {
+            mask |= bit << 1; // 1left
+            mask |= bit << 7; // 1top 1left
+            mask |= bit << 8; // 1top
+            mask |= bit << 9; // 1top 1right
+        }
+        if(bit & NOT_FILE_H) {
+            mask |= bit >> 1; // 1right
+            mask |= bit >> 7; // 1down 1left
+            mask |= bit >> 8; // 1down
+            mask |= bit >> 9; // 1down 1right
+        }
+        King_Attacks[square] = mask;
     }
 }
 
@@ -74,7 +140,7 @@ void Pawn_Attacks_Init() {
 
 // ::--- Evaluation ---::
 
-int BitSet256[256];
+int BitSet256[256];  /* Used for Bit Counting */
 
 void BitSet256_Init() {
     BitSet256[0] = 0;
@@ -83,6 +149,7 @@ void BitSet256_Init() {
     }
 }
 
+// Count the amount of bits activated in a 64-bit number
 int Count_Bits(u64 n) {
     return (BitSet256[n         & 0xff] +
             BitSet256[(n >> 8)  & 0xff] +
@@ -137,7 +204,7 @@ int Count_Isolated_Pawns(u64 pawns) {
 
 // A pawn whose forward square (in front of it) is occupied by any pawn (typically an enemy pawn).
 int Count_Blocked_Pawns(u64 pawns) {
-    u64 all     = White_Pawns | Black_Pawns;
+    u64 all     = White_Pawn | Black_Pawn;
     u64 blocked = White_Turn == 1
         ? pawns & (all >> 8)
         : pawns & (all << 8);
@@ -145,7 +212,7 @@ int Count_Blocked_Pawns(u64 pawns) {
 }
 
 
-/* This evaluated relative to the side being evaluated */
+// This evaluated relative to the side being evaluated
 f32 Evaluate_Board() {
     // TODO: for pieces that are just 1, only check different than 0
     int King_Score           = 200 * White_Turn * (Count_Bits(White_King)    - Count_Bits(Black_King));
@@ -153,21 +220,21 @@ f32 Evaluate_Board() {
     int Rook_Score           =   5 * White_Turn * (Count_Bits(White_Rook)    - Count_Bits(Black_Rook));
     int Bishops_Knight_Score =   3 * White_Turn * ((Count_Bits(White_Bishop) - Count_Bits(Black_Bishop))
                                    + (Count_Bits(White_Knight)  - Count_Bits(Black_Knight)));
-    int Pawns_Score          =   1 * White_Turn * (Count_Bits(White_Pawns)   - Count_Bits(Black_Pawns));
+    int Pawns_Score          =   1 * White_Turn * (Count_Bits(White_Pawn)   - Count_Bits(Black_Pawn));
 
-    int White_Doubled_Pawns  = Count_Doubled_Pawns(White_Pawns);
-    int Black_Doubled_Pawns  = Count_Doubled_Pawns(Black_Pawns);
+    int White_Doubled_Pawns  = Count_Doubled_Pawns(White_Pawn);
+    int Black_Doubled_Pawns  = Count_Doubled_Pawns(Black_Pawn);
 
-    int White_Isolated_Pawns = Count_Isolated_Pawns(White_Pawns);
-    int Black_Isolated_Pawns = Count_Isolated_Pawns(Black_Pawns);
+    int White_Isolated_Pawns = Count_Isolated_Pawns(White_Pawn);
+    int Black_Isolated_Pawns = Count_Isolated_Pawns(Black_Pawn);
 
-    int White_Blocked_Pawns  = Count_Blocked_Pawns(White_Pawns);
-    int Black_Blocked_Pawns  = Count_Blocked_Pawns(Black_Pawns);
+    int White_Blocked_Pawns  = Count_Blocked_Pawns(White_Pawn);
+    int Black_Blocked_Pawns  = Count_Blocked_Pawns(Black_Pawn);
 
 
     /* ::--- Mobility ---:: */
     {
-        u64 occupancy = White_Pawns | White_Bishop | White_Knight
+        u64 occupancy = White_Pawn | White_Bishop | White_Knight
                       | White_Rook  | White_Queen  | White_King;
 
     }

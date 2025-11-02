@@ -1,0 +1,20 @@
+// raddbg 0.9.24 project file
+
+recent_file: path: "../code/main.c"
+target:
+{
+  executable: "../build/main.exe"
+  working_directory: "../build/"
+  enabled: 1
+}
+debug_info:
+{
+  path: "D:/projects/chess/build/main.pdb"
+  timestamp: 66197282257526
+}
+breakpoint:
+{
+  source_location: "../code/main.c:91:1"
+  condition: "square = 28"
+  hit_count: 21
+}
