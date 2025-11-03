@@ -73,7 +73,7 @@ u64 Pawn_Attacks[2][64];
 u64 Knight_Attacks[64];
 u64 King_Attacks[64];
 
-void Pawn_Attacks_Init() {
+void Pawn_Attacks_Init(void) {
     for(u8 square = 0; square < 64; square++) {
         u64 bit = 1ULL << square;
 
@@ -92,7 +92,7 @@ void Pawn_Attacks_Init() {
     }
 }
 
-void Knight_Attacks_Init() {
+void Knight_Attacks_Init(void) {
     for(u8 square = 0; square < 64; square++) {
         u8   bit = 1ULL << square;
         u64 mask = 0ULL;
@@ -112,7 +112,7 @@ void Knight_Attacks_Init() {
     }
 }
 
-void King_Attacks_Init() {
+void King_Attacks_Init(void) {
     for(u8 square = 0; square < 64; square++) {
         u8   bit = 1ULL << square;
         u64 mask = 0ULL;
@@ -133,32 +133,42 @@ void King_Attacks_Init() {
 }
 
 // Sliding pieces
-// u64 Bishop_Attack(square, occupancy);
-// u64 Rook_Attack(square, occupancy);
-// u64 Queen_Attack(square, occupancy); // bishop ^ rook attacks
+u64 Bishop_Attack(u8 square, u64 occupancy) {
+    // TODO:
+    return 0.0;
+}
 
+u64 Rook_Attack(u8 square, u64 occupancy) {
+    // TODO:
+    return 0.0;
+}
+
+inline u64 Queen_Attack(u8 square, u64 occupancy) {
+   return Bishop_Attack(square, occupancy) | Rook_Attack(square, occupancy);
+}
 
 // ::--- Evaluation ---::
 
-int BitSet256[256];  /* Used for Bit Counting */
-
-void BitSet256_Init() {
-    BitSet256[0] = 0;
-    for(u8 i=1; i<255; i++) {
-        BitSet256[i] = (i & 1) + BitSet256[i >> 1];
-    }
+// Count the amount of bits activated in a 64-bit number
+inline int Count_Bits(u64 x) {
+#if defined (_MSC_VER)
+    return (int)__popcnt64(x);
+#else
+    return __builtin_popcountll(n);
+#endif
 }
 
-// Count the amount of bits activated in a 64-bit number
-int Count_Bits(u64 n) {
-    return (BitSet256[n         & 0xff] +
-            BitSet256[(n >> 8)  & 0xff] +
-            BitSet256[(n >> 16) & 0xff] +
-            BitSet256[(n >> 24) & 0xff] +
-            BitSet256[(n >> 32) & 0xff] +
-            BitSet256[(n >> 40) & 0xff] +
-            BitSet256[(n >> 48) & 0xff] +
-            BitSet256[(n >> 56) & 0xff]);
+// Index of the least significant bit
+inline u8 Pop_Least_Significant_Bit(u64* x) {
+    unsigned long idx;
+// #if defined (_MSC_VER)
+//     _BitScanForward64(&idx, n);
+//     return (u8)idx;
+// #else
+    idx = __builtin_ctzll(*x);
+// #endif
+    *x &= (*x-1);
+    return idx;
 }
 
 // Two or more pawns of the same color on the same file.
@@ -176,15 +186,11 @@ int Count_Doubled_Pawns(u64 pawns) {
 
 // A pawn that has no friendly pawns on the adjacent files.
 int Count_Isolated_Pawns(u64 pawns) {
-    u64 file_a = 0x0101010101010101;
-    u64 file_h = file_a << 7;
-    u64 full   = ~0ULL; // 0xFFFFFFFFFFFFFFFF
-
     // 'file' bitboard mask for each file that contains at least 1 pawn.
     // Set every bit on that file
     u64 files = 0ULL;
     for(u8 file=0; file<8; file++) {
-       u64 file_mask = file_a << file;      // mask for current file
+       u64 file_mask = NOT_FILE_A << file;  // mask for current file
        if(pawns & file_mask) {              // if any pawns in the current file
            files |= file_mask;              // mask the whole file as occupied
        }
@@ -192,8 +198,8 @@ int Count_Isolated_Pawns(u64 pawns) {
 
     // Compute files adjacent to any occupied file.
     // Avoid wrap-around when shifting
-    u64 left_files     = (files << 1) & ~file_a;
-    u64 right_files    = (files >> 1) & ~file_h;
+    u64 left_files     = (files << 1) & ~NOT_FILE_A;
+    u64 right_files    = (files >> 1) & ~NOT_FILE_H;
     u64 neighbor_files = left_files | right_files;
 
     // Pawns that are in files that have no neighbors
@@ -212,8 +218,12 @@ int Count_Blocked_Pawns(u64 pawns) {
 }
 
 
-// This evaluated relative to the side being evaluated
-f32 Evaluate_Board() {
+/* This evaluated relative to the side being evaluated
+   - Material score
+   - Pawn structure penalties
+   - Mobility (positional bonus)
+*/
+f32 Evaluate_Board(void) {
     // TODO: for pieces that are just 1, only check different than 0
     int King_Score           = 200 * White_Turn * (Count_Bits(White_King)    - Count_Bits(Black_King));
     int Queen_Score          =   9 * White_Turn * (Count_Bits(White_Queen)   - Count_Bits(Black_Queen));
@@ -233,15 +243,58 @@ f32 Evaluate_Board() {
 
 
     /* ::--- Mobility ---:: */
-    {
-        u64 occupancy = White_Pawn | White_Bishop | White_Knight
-                      | White_Rook  | White_Queen  | White_King;
-
-    }
-
+    // Mobility it's the number of legal squares a peace can move to
 
     int White_Mobility = 0.0; // TODO: fix this
     int Black_Mobility = 0.0;
+    {
+        u64 White_Occupancy = White_Pawn | White_Bishop | White_Knight
+                            | White_Rook | White_Queen  | White_King;
+
+        u64 Black_Occupancy = Black_Pawn | Black_Bishop | Black_Knight
+                            | Black_Rook | Black_Queen  | Black_King;
+
+        u64 All_Occupancy = White_Occupancy | Black_Occupancy;
+
+        u64 bb;
+        int square;
+
+        // Knights
+        bb = White_Knight;
+        while(bb) {
+            square = Pop_Least_Significant_Bit(&bb);
+            White_Mobility += Count_Bits(Knight_Attacks[square] & ~White_Occupancy);
+        }
+
+        // King
+        bb = White_King;
+        square = Pop_Least_Significant_Bit(&bb);
+        White_Mobility += Count_Bits(King_Attacks[square] & ~White_Occupancy);
+
+        // Bishops
+        bb = White_Bishop;
+        while(bb) {
+            square = Pop_Least_Significant_Bit(&bb);
+            White_Mobility += Count_Bits(Bishop_Attack(square, All_Occupancy) & ~White_Occupancy);
+        }
+
+        // Rooks
+        bb = White_Rook;
+        while(bb) {
+            square = Pop_Least_Significant_Bit(&bb);
+            White_Mobility += Count_Bits(Rook_Attack(square, All_Occupancy) & ~White_Occupancy);
+        }
+
+        // Queen
+        bb = White_Queen;
+        while(bb) {
+            square = Pop_Least_Significant_Bit(&bb);
+            White_Mobility += Count_Bits(Queen_Attack(square, All_Occupancy) & ~White_Occupancy);
+        }
+
+        // TODO: Black
+    }
+
 
     return (King_Score
           + Queen_Score
@@ -255,11 +308,11 @@ f32 Evaluate_Board() {
     );
 }
 
-int main() {
-    BitSet256_Init();
+int main(void) {
     Pawn_Attacks_Init();
+    Knight_Attacks_Init();
+    King_Attacks_Init();
 
-    // Evaluate_Board();
 
     return 0;
 }

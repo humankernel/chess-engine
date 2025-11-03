@@ -1,6 +1,8 @@
 // raddbg 0.9.24 project file
 
 recent_file: path: "../code/main.c"
+recent_file: path: "../../../a/_work/1/s/src/vctools/crt/vcstartup/src/utility/utility_desktop.cpp"
+recent_file: path: "../../../a/_work/1/s/src/vctools/crt/vcstartup/src/startup/exe_common.inl"
 target:
 {
   executable: "../build/main.exe"
@@ -10,11 +12,5 @@ target:
 debug_info:
 {
   path: "D:/projects/chess/build/main.pdb"
-  timestamp: 66197282257526
-}
-breakpoint:
-{
-  source_location: "../code/main.c:91:1"
-  condition: "square = 28"
-  hit_count: 21
+  timestamp: 66197288533458
 }
