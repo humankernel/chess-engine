@@ -1,0 +1,6 @@
+[
+    {
+        "label": "Build Project",
+        "command": "./build.bat"
+    }
+]

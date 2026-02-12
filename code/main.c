@@ -27,7 +27,9 @@ Squares a1, b1, c1, d1,
 3 2 1 0 1 2 3
 */
 
+#include <limits.h>
 #include <stdint.h>
+#include <intrin.h>
 
 typedef uint8_t  u8;
 typedef uint16_t u16;
@@ -73,7 +75,7 @@ u64 Pawn_Attacks[2][64];
 u64 Knight_Attacks[64];
 u64 King_Attacks[64];
 
-void Pawn_Attacks_Init(void) {
+inline void Init_Pawn_Attacks(void) {
     for(u8 square = 0; square < 64; square++) {
         u64 bit = 1ULL << square;
 
@@ -92,7 +94,7 @@ void Pawn_Attacks_Init(void) {
     }
 }
 
-void Knight_Attacks_Init(void) {
+inline void Init_Knight_Attacks(void)  {
     for(u8 square = 0; square < 64; square++) {
         u8   bit = 1ULL << square;
         u64 mask = 0ULL;
@@ -112,7 +114,7 @@ void Knight_Attacks_Init(void) {
     }
 }
 
-void King_Attacks_Init(void) {
+inline void Init_King_Attacks(void) {
     for(u8 square = 0; square < 64; square++) {
         u8   bit = 1ULL << square;
         u64 mask = 0ULL;
@@ -133,12 +135,12 @@ void King_Attacks_Init(void) {
 }
 
 // Sliding pieces
-u64 Bishop_Attack(u8 square, u64 occupancy) {
+inline u64 Bishop_Attack(u8 square, u64 occupancy) {
     // TODO:
     return 0.0;
 }
 
-u64 Rook_Attack(u8 square, u64 occupancy) {
+inline u64 Rook_Attack(u8 square, u64 occupancy) {
     // TODO:
     return 0.0;
 }
@@ -161,12 +163,12 @@ inline int Count_Bits(u64 x) {
 // Index of the least significant bit
 inline u8 Pop_Least_Significant_Bit(u64* x) {
     unsigned long idx;
-// #if defined (_MSC_VER)
-//     _BitScanForward64(&idx, n);
-//     return (u8)idx;
-// #else
+#if defined (_MSC_VER)
+    _BitScanForward64(&idx, *x);
+    return (u8)idx;
+#else
     idx = __builtin_ctzll(*x);
-// #endif
+#endif
     *x &= (*x-1);
     return idx;
 }
@@ -223,14 +225,35 @@ int Count_Blocked_Pawns(u64 pawns) {
    - Pawn structure penalties
    - Mobility (positional bonus)
 */
-f32 Evaluate_Board(void) {
-    // TODO: for pieces that are just 1, only check different than 0
-    int King_Score           = 200 * White_Turn * (Count_Bits(White_King)    - Count_Bits(Black_King));
-    int Queen_Score          =   9 * White_Turn * (Count_Bits(White_Queen)   - Count_Bits(Black_Queen));
-    int Rook_Score           =   5 * White_Turn * (Count_Bits(White_Rook)    - Count_Bits(Black_Rook));
-    int Bishops_Knight_Score =   3 * White_Turn * ((Count_Bits(White_Bishop) - Count_Bits(Black_Bishop))
-                                   + (Count_Bits(White_Knight)  - Count_Bits(Black_Knight)));
-    int Pawns_Score          =   1 * White_Turn * (Count_Bits(White_Pawn)   - Count_Bits(Black_Pawn));
+f32 Evaluate_Board(u8 Who2Move) {
+    /* ------------ Material Score ------------  */
+
+    int White_King_Count   = Count_Bits(White_King);
+    int Black_King_Count   = Count_Bits(Black_King);
+
+    int White_Queen_Count  = Count_Bits(White_Queen);
+    int Black_Queen_Count  = Count_Bits(Black_Queen);
+
+    int White_Rook_Count   = Count_Bits(White_Rook);
+    int Black_Rook_Count   = Count_Bits(Black_Rook);
+
+    int White_Knight_Count = Count_Bits(White_Knight);
+    int Black_Knight_Count = Count_Bits(Black_Knight);
+
+    int White_Bishop_Count = Count_Bits(White_Bishop);
+    int Black_Bishop_Count = Count_Bits(Black_Bishop);
+
+    int White_Pawn_Count   = Count_Bits(White_Pawn);
+    int Black_Pawn_Count   = Count_Bits(Black_Pawn);
+
+    int Material_Score =  200 * (White_King_Count - Black_King_Count)
+                        +   9 * (White_Queen_Count - Black_Queen_Count)
+                        +   5 * (White_Rook_Count - Black_Rook_Count)
+                        +   3 * (White_Knight_Count - Black_Knight_Count)
+                        +   3 * (White_Bishop_Count - Black_Bishop_Count)
+                        +   1 * (White_Pawn_Count - Black_Pawn_Count);
+
+    /* ------------ Pawn Structure Penalties ------------ */
 
     int White_Doubled_Pawns  = Count_Doubled_Pawns(White_Pawn);
     int Black_Doubled_Pawns  = Count_Doubled_Pawns(Black_Pawn);
@@ -241,11 +264,14 @@ f32 Evaluate_Board(void) {
     int White_Blocked_Pawns  = Count_Blocked_Pawns(White_Pawn);
     int Black_Blocked_Pawns  = Count_Blocked_Pawns(Black_Pawn);
 
+    int Pawn_Structure_Score = 0.5 * ((White_Doubled_Pawns - Black_Doubled_Pawns)
+                                    - (White_Blocked_Pawns - Black_Blocked_Pawns)
+                                    - (White_Isolated_Pawns - Black_Isolated_Pawns));
 
-    /* ::--- Mobility ---:: */
+    /* ------------ Mobility ------------  */
     // Mobility it's the number of legal squares a peace can move to
 
-    int White_Mobility = 0.0; // TODO: fix this
+    int White_Mobility = 0.0;
     int Black_Mobility = 0.0;
     {
         u64 White_Occupancy = White_Pawn | White_Bishop | White_Knight
@@ -266,16 +292,32 @@ f32 Evaluate_Board(void) {
             White_Mobility += Count_Bits(Knight_Attacks[square] & ~White_Occupancy);
         }
 
+        bb = Black_Knight;
+        while(bb) {
+            square = Pop_Least_Significant_Bit(&bb);
+            Black_Mobility += Count_Bits(Knight_Attacks[square] & ~Black_Occupancy);
+        }
+
         // King
         bb = White_King;
         square = Pop_Least_Significant_Bit(&bb);
         White_Mobility += Count_Bits(King_Attacks[square] & ~White_Occupancy);
+
+        bb = Black_King;
+        square = Pop_Least_Significant_Bit(&bb);
+        Black_Mobility += Count_Bits(King_Attacks[square] & ~Black_Occupancy);
 
         // Bishops
         bb = White_Bishop;
         while(bb) {
             square = Pop_Least_Significant_Bit(&bb);
             White_Mobility += Count_Bits(Bishop_Attack(square, All_Occupancy) & ~White_Occupancy);
+        }
+
+        bb = Black_Bishop;
+        while(bb) {
+            square = Pop_Least_Significant_Bit(&bb);
+            Black_Mobility += Count_Bits(Bishop_Attack(square, All_Occupancy) & ~Black_Occupancy);
         }
 
         // Rooks
@@ -285,6 +327,12 @@ f32 Evaluate_Board(void) {
             White_Mobility += Count_Bits(Rook_Attack(square, All_Occupancy) & ~White_Occupancy);
         }
 
+        bb = Black_Rook;
+        while(bb) {
+            square = Pop_Least_Significant_Bit(&bb);
+            Black_Mobility += Count_Bits(Rook_Attack(square, All_Occupancy) & ~Black_Occupancy);
+        }
+
         // Queen
         bb = White_Queen;
         while(bb) {
@@ -292,26 +340,26 @@ f32 Evaluate_Board(void) {
             White_Mobility += Count_Bits(Queen_Attack(square, All_Occupancy) & ~White_Occupancy);
         }
 
-        // TODO: Black
+        bb = Black_Queen;
+        while(bb) {
+            square = Pop_Least_Significant_Bit(&bb);
+            Black_Mobility += Count_Bits(Queen_Attack(square, All_Occupancy) & ~Black_Occupancy);
+        }
     }
 
+    u8 Mobility_Score = 0.1 * (White_Mobility - Black_Mobility);
 
-    return (King_Score
-          + Queen_Score
-          + Rook_Score
-          + Bishops_Knight_Score
-          + Pawns_Score
-        - 0.5*((White_Doubled_Pawns  - Black_Doubled_Pawns)
-              +(White_Blocked_Pawns  - Black_Blocked_Pawns)
-              +(White_Isolated_Pawns - Black_Isolated_Pawns))
-        + 0.1*(White_Mobility - Black_Mobility)
-    );
+    return (Material_Score + Pawn_Structure_Score + Mobility_Score) * Who2Move;
+}
+
+int Negamax(int depth) {
+
 }
 
 int main(void) {
-    Pawn_Attacks_Init();
-    Knight_Attacks_Init();
-    King_Attacks_Init();
+    Init_Pawn_Attacks();
+    Init_Knight_Attacks();
+    Init_King_Attacks();
 
 
     return 0;

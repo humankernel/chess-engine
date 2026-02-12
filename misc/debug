@@ -1,16 +1,60 @@
 // raddbg 0.9.24 project file
 
+recent_file: path: "../../car_play/src/main.c"
+recent_file: path: "../../cimgui-sokol-starterkit/src/obd.h"
+recent_file: path: "../../01 - CAR/car_play/src/main.c"
+recent_file: path: "../../01 - CAR/car_play/src/obd.h"
+recent_file: path: "../../01 - CAR/cimgui-sokol-starterkit/src/src/obd.h"
+recent_file: path: "../../01 - CAR/cimgui-sokol-starterkit/src/src/main.c"
+recent_file: path: "../../02 - GAME/raylib-game/nob.c"
+recent_file: path: "../../01 - CAR/cimgui-sokol-starterkit/src/sokol/sokol_app.h"
+recent_file: path: "../../01 - CAR/cimgui-sokol-starterkit/src/obd.h"
+recent_file: path: "../../01 - CAR/cimgui-sokol-starterkit/src/main.c"
+recent_file: path: "../../01 - CAR/cimgui-sokol-starterkit/src/src/obd.c"
+recent_file: path: "../../01 - CAR/cimgui-sokol-starterkit/src/obd.c"
+recent_file: path: "../../01 - CAR/cimgui-sokol-starterkit/src/src/demo.c"
+recent_file: path: "../../01 - CAR/cimgui-sokol-starterkit/src/demo.c"
+recent_file: path: "../../01 - CAR/cimgui-sokol-starterkit/demo.c"
+recent_file: path: "../../01 - CAR/cimgui-sokol-starterkit/sokol/sokol_app.h"
+recent_file: path: "../../01 - CAR/car_play/src/main.cpp"
+recent_file: path: "../../01 - CAR/car_play/src/obd.cpp"
+recent_file: path: "../../handmade/code/win32_handmade.cpp"
 recent_file: path: "../code/main.c"
 recent_file: path: "../../../a/_work/1/s/src/vctools/crt/vcstartup/src/utility/utility_desktop.cpp"
 recent_file: path: "../../../a/_work/1/s/src/vctools/crt/vcstartup/src/startup/exe_common.inl"
-target:
-{
-  executable: "../build/main.exe"
-  working_directory: "../build/"
-  enabled: 1
-}
 debug_info:
 {
   path: "D:/projects/chess/build/main.pdb"
   timestamp: 66197288533458
+}
+debug_info:
+{
+  path: "D:/projects/handmade/build/win32_handmade.pdb"
+  timestamp: 66198419148089
+}
+debug_info:
+{
+  path: "D:/projects/01 - CAR/car_play/build/main.pdb"
+  timestamp: 66199732656312
+}
+debug_info:
+{
+  path: "D:/projects/01 - CAR/cimgui-sokol-starterkit/build/Debug/demo.pdb"
+  timestamp: 66199726774357
+}
+debug_info:
+{
+  path: "D:/projects/02 - GAME/raylib-game/nob.pdb"
+  timestamp: 66199537294283
+}
+target:
+{
+  executable: "../../car_play/build/main.exe"
+  working_directory: "../../car_play/build"
+  enabled: 1
+}
+debug_info:
+{
+  path: "D:/projects/car_play/build/main.pdb"
+  timestamp: 66200319948379
 }
